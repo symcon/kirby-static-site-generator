@@ -7,32 +7,34 @@ use Kirby\Cms\App;
 use Kirby\Cms\Page;
 use Kirby\Cms\Pages;
 use Kirby\Cms\Site;
+use Kirby\Exception\InvalidArgumentException;
+use Kirby\Exception\NotFoundException;
+use Kirby\Filesystem\Dir;
+use Kirby\Filesystem\F;
 use Kirby\Toolkit\A;
-use Kirby\Toolkit\Dir;
-use Kirby\Toolkit\F;
 use Kirby\Http\Url;
 use Whoops\Exception\ErrorException;
 
 class StaticSiteGenerator
 {
-  protected $_kirby;
-  protected $_pathsToCopy;
-  protected $_outputFolder;
+  protected App $_kirby;
+  protected array $_pathsToCopy;
+  protected string|null|false $_outputFolder;
 
-  protected $_pages;
-  protected $_fileList = [];
+  protected Pages $_pages;
+  protected array $_fileList = [];
 
-  protected $_originalBaseUrl;
-  protected $_defaultLanguage;
-  protected $_languages;
-  protected $_ignoreUntranslatedPages = false;
+  protected string $_originalBaseUrl;
+  protected ?\Kirby\Cms\Language $_defaultLanguage;
+  protected array $_languages;
+  protected bool $_ignoreUntranslatedPages = false;
 
-  protected $_skipCopyingMedia = false;
-  protected $_skipCopyingPluginAssets = false;
+  protected bool $_skipCopyingMedia = false;
+  protected bool $_skipCopyingPluginAssets = false;
 
-  protected $_customRoutes = [];
+  protected array $_customRoutes = [];
 
-  protected $_indexFileName = 'index.html';
+  protected string $_indexFileName = 'index.html';
 
   public function __construct(App $kirby, array $pathsToCopy = null, Pages $pages = null)
   {
@@ -48,7 +50,12 @@ class StaticSiteGenerator
     $this->_languages = $this->_defaultLanguage ? $kirby->languages()->keys() : [$this->_defaultLanguage];
   }
 
-  public function generate(string $outputFolder = './static', string $baseUrl = '/', array $preserve = [])
+	/**
+	 * @throws NotFoundException
+	 * @throws InvalidArgumentException
+	 * @throws \Exception
+	 */
+	public function generate(string $outputFolder = './static', string $baseUrl = '/', array $preserve = []): array
   {
     $this->_outputFolder = $this->_resolveRelativePath($outputFolder ?: $this->_outputFolder);
     $this->_checkOutputFolder();
@@ -63,7 +70,11 @@ class StaticSiteGenerator
     return $this->_fileList;
   }
 
-  public function generatePages(string $baseUrl = '/')
+	/**
+	 * @throws NotFoundException
+	 * @throws InvalidArgumentException
+	 */
+	public function generatePages(string $baseUrl = '/'): array
   {
     $this->_setOriginalBaseUrl();
 
@@ -74,7 +85,7 @@ class StaticSiteGenerator
 
     $homePage = $this->_pages->findBy('isHomePage', 'true');
     if ($homePage) {
-      $this->_setPageLanguage($homePage, $this->_defaultLanguage ? $this->_defaultLanguage->code() : null);
+      $this->_setPageLanguage($homePage, $this->_defaultLanguage?->code());
       $this->_generatePage($homePage, $this->_outputFolder . '/' . $this->_indexFileName, $baseUrl);
     }
 
@@ -99,31 +110,31 @@ class StaticSiteGenerator
     return $this->_fileList;
   }
 
-  public function skipMedia($skipCopyingMedia = true)
+  public function skipMedia($skipCopyingMedia = true): static
   {
     $this->_skipCopyingMedia = $skipCopyingMedia;
     return $this;
   }
 
-  public function skipPluginAssets($skipCopyingPluginAssets = true)
+  public function skipPluginAssets($skipCopyingPluginAssets = true): static
   {
     $this->_skipCopyingPluginAssets = $skipCopyingPluginAssets;
     return $this;
   }
 
-  public function setCustomRoutes(array $customRoutes)
+  public function setCustomRoutes(array $customRoutes): static
   {
     $this->_customRoutes = $customRoutes;
     return $this;
   }
 
-  public function setIgnoreUntranslatedPages(bool $ignoreUntranslatedPages)
+  public function setIgnoreUntranslatedPages(bool $ignoreUntranslatedPages): static
   {
     $this->_ignoreUntranslatedPages = $ignoreUntranslatedPages;
     return $this;
   }
 
-  public function setIndexFileName(string $indexFileName)
+  public function setIndexFileName(string $indexFileName): static
   {
     $indexFileName = preg_replace('/[^a-z0-9.]/i', '', $indexFileName);
     if (!preg_replace('/[.]/', '', $indexFileName)) {
@@ -134,7 +145,7 @@ class StaticSiteGenerator
     return $this;
   }
 
-  protected function _setOriginalBaseUrl()
+  protected function _setOriginalBaseUrl(): void
   {
     if (!$this->_kirby->urls()->base()) {
       $this->_modifyBaseUrl('https://jr-ssg-base-url');
@@ -143,23 +154,27 @@ class StaticSiteGenerator
     $this->_originalBaseUrl = $this->_kirby->urls()->base();
   }
 
-  protected function _restoreOriginalBaseUrl()
+  protected function _restoreOriginalBaseUrl(): void
   {
     if ($this->_originalBaseUrl === 'https://jr-ssg-base-url') {
       $this->_modifyBaseUrl('');
     }
   }
 
-  protected function _modifyBaseUrl(string $baseUrl)
+  protected function _modifyBaseUrl(string $baseUrl): void
   {
     $urls = array_map(function ($url) use ($baseUrl) {
       $newUrl = $url === '/' ? $baseUrl : $baseUrl . $url;
-      return strpos($url, 'http') === 0 ? $url : $newUrl;
+      return str_starts_with($url, 'http') ? $url : $newUrl;
     }, $this->_kirby->urls()->toArray());
     $this->_kirby = $this->_kirby->clone(['urls' => $urls]);
   }
 
-  protected function _generatePagesByLanguage(string $baseUrl, string $languageCode = null)
+	/**
+	 * @throws NotFoundException
+	 * @throws InvalidArgumentException
+	 */
+	protected function _generatePagesByLanguage(string $baseUrl, string $languageCode = null): void
   {
     foreach ($this->_pages->keys() as $key) {
       $page = $this->_pages->$key;
@@ -199,7 +214,10 @@ class StaticSiteGenerator
     return is_string($routeResult) ? $routeResult : null;
   }
 
-  protected function _generateCustomRoute(string $baseUrl, array $route)
+	/**
+	 * @throws InvalidArgumentException|NotFoundException
+	 */
+	protected function _generateCustomRoute(string $baseUrl, array $route): void
   {
     $path = A::get($route, 'path');
     $page = A::get($route, 'page');
@@ -231,7 +249,8 @@ class StaticSiteGenerator
     $this->_generatePage($page, $path, $baseUrl, $data, $routeContent);
   }
 
-  protected function _resetPage(Page|Site $page) {
+  protected function _resetPage(Page|Site $page): void
+  {
     $page->content = null;
 
     foreach ($page->children() as $child) {
@@ -243,7 +262,10 @@ class StaticSiteGenerator
     }
   }
 
-  protected function _setPageLanguage(Page $page, string $languageCode = null, $forceReset = true)
+	/**
+	 * @throws InvalidArgumentException
+	 */
+	protected function _setPageLanguage(Page $page, string $languageCode = null, $forceReset = true): void
   {
     $this->_resetCollections();
 
@@ -262,14 +284,18 @@ class StaticSiteGenerator
     $site->visit($page, $languageCode);
   }
 
-  protected function _resetCollections()
+  protected function _resetCollections(): void
   {
     (function () {
       $this->collections = null;
     })->bindTo($this->_kirby, 'Kirby\\Cms\\App')($this->_kirby);
   }
 
-  protected function _generatePage(Page $page, string $path, string $baseUrl, array $data = [], string $content = null)
+	/**
+	 * @throws NotFoundException
+	 * @throws \Exception
+	 */
+	protected function _generatePage(Page $page, string $path, string $baseUrl, array $data = [], string $content = null): void
   {
     $page->setSite(null);
     $content = $content ?: $page->render($data);
@@ -286,7 +312,10 @@ class StaticSiteGenerator
     $this->_fileList = array_unique(array_merge($this->_fileList, [$path]));
   }
 
-  public function copyFiles(string $folder = null)
+	/**
+	 * @throws \Exception
+	 */
+	public function copyFiles(string $folder = null): array
   {
     $outputFolder = $this->_outputFolder;
 
@@ -311,7 +340,7 @@ class StaticSiteGenerator
     return $this->_fileList;
   }
 
-  protected function _copyMediaFiles()
+  protected function _copyMediaFiles(): array
   {
     $outputFolder = $this->_outputFolder;
     $mediaList = StaticSiteGeneratorMedia::getList();
@@ -328,7 +357,7 @@ class StaticSiteGenerator
     return $this->_fileList;
   }
 
-  protected function _copyPluginAssets()
+  protected function _copyPluginAssets(): void
   {
     $outputFolder = $this->_outputFolder;
     $mediaPath = Url::path($this->_kirby->url('media'));
@@ -345,7 +374,7 @@ class StaticSiteGenerator
     }
   }
 
-  protected function _copyFile($file, $targetPath)
+  protected function _copyFile($file, $targetPath): array
   {
     if (F::copy($file, $targetPath)) {
       $this->_fileList[] = $targetPath;
@@ -354,7 +383,7 @@ class StaticSiteGenerator
     return $this->_fileList;
   }
 
-  public function clearFolder(string $folder, array $preserve = [])
+  public function clearFolder(string $folder, array $preserve = []): bool
   {
     $folder = $this->_resolveRelativePath($folder);
     $items = $this->_getFileList($folder);
@@ -366,7 +395,7 @@ class StaticSiteGenerator
           return $totalResult;
         }
 
-        if (strpos($folderName, '.') === 0) {
+        if (str_starts_with($folderName, '.')) {
           return $totalResult;
         }
 
@@ -377,7 +406,7 @@ class StaticSiteGenerator
     );
   }
 
-  protected function _getFolderName(string $folder)
+  protected function _getFolderName(string $folder): ?string
   {
     $segments = explode(DIRECTORY_SEPARATOR, $folder);
     return array_pop($segments);
@@ -406,7 +435,7 @@ class StaticSiteGenerator
       [];
   }
 
-  protected function _resolveRelativePaths(array $paths)
+  protected function _resolveRelativePaths(array $paths): array
   {
     return array_values(
       array_filter(
@@ -417,9 +446,9 @@ class StaticSiteGenerator
     );
   }
 
-  protected function _resolveRelativePath(string $path = null)
+  protected function _resolveRelativePath(string $path = null): bool|string|null
   {
-    if (!$path || strpos($path, '.') !== 0) {
+    if (!$path || !str_starts_with($path, '.')) {
       return realpath($path) ?: $path;
     }
 
@@ -433,14 +462,14 @@ class StaticSiteGenerator
     $path = preg_replace('/([^\/]+\.[a-z]{2,5})\/' . $this->_indexFileName . '$/i', '$1', $path);
     $path = preg_replace('/(\.[^\/.]+)\/' . $this->_indexFileName . '$/i', '$1', $path);
 
-    if (strpos($path, '//') !== false) {
+    if (str_contains($path, '//')) {
       return $this->_cleanPath($path);
     }
 
     return $path;
   }
 
-  protected function _checkOutputFolder()
+  protected function _checkOutputFolder(): void
   {
     $folder = $this->_outputFolder;
     if (!$folder) {
