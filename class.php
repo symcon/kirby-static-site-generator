@@ -3,7 +3,6 @@
 namespace JR;
 
 use Error;
-use Throwable;
 use Kirby\Cms\App;
 use Kirby\Cms\Page;
 use Kirby\Cms\Pages;
@@ -51,8 +50,6 @@ class StaticSiteGenerator
 
   public function generate(string $outputFolder = './static', string $baseUrl = '/', array $preserve = [])
   {
-    $this->_registerShutdownFunction();
-
     $this->_outputFolder = $this->_resolveRelativePath($outputFolder ?: $this->_outputFolder);
     $this->_checkOutputFolder();
     F::write($this->_outputFolder . '/.kirbystatic', '');
@@ -78,11 +75,7 @@ class StaticSiteGenerator
     $homePage = $this->_pages->findBy('isHomePage', 'true');
     if ($homePage) {
       $this->_setPageLanguage($homePage, $this->_defaultLanguage ? $this->_defaultLanguage->code() : null);
-      try {
-        $this->_generatePage($homePage, $this->_outputFolder . '/' . $this->_indexFileName, $baseUrl);
-      } catch (Throwable $error) {
-        $this->_handleRenderError($error, $homePage->id());
-      }
+      $this->_generatePage($homePage, $this->_outputFolder . '/' . $this->_indexFileName, $baseUrl);
     }
 
     foreach ($this->_languages as $languageCode) {
@@ -104,16 +97,6 @@ class StaticSiteGenerator
 
     $this->_restoreOriginalBaseUrl();
     return $this->_fileList;
-  }
-
-  protected function _registerShutdownFunction()
-  {
-    register_shutdown_function(function () {
-      if ($error = error_get_last()) {
-        echo 'FATAL_ERROR:';
-        throw new ErrorException($error['message'], $error['type'] ?? 1, 1, $error['file'] ?? '', $error['line'] ?? 0);
-      }
-    });
   }
 
   public function skipMedia($skipCopyingMedia = true)
@@ -189,7 +172,7 @@ class StaticSiteGenerator
       $path = $this->_cleanPath($this->_outputFolder . $path . '/' . $this->_indexFileName);
       try {
         $this->_generatePage($page, $path, $baseUrl);
-      } catch (Throwable $error) {
+      } catch (ErrorException $error) {
         $this->_handleRenderError($error, $key, $languageCode);
       }
     }
@@ -248,8 +231,7 @@ class StaticSiteGenerator
     $this->_generatePage($page, $path, $baseUrl, $data, $routeContent);
   }
 
-  protected function _resetPage(Page|Site $page)
-  {
+  protected function _resetPage(Page|Site $page) {
     $page->content = null;
 
     foreach ($page->children() as $child) {
@@ -491,7 +473,7 @@ class StaticSiteGenerator
     );
   }
 
-  protected function _handleRenderError(Throwable $error, string $key, string $languageCode = null)
+  protected function _handleRenderError(ErrorException $error, string $key, string $languageCode = null)
   {
     $message = $error->getMessage();
     $file = str_replace($this->_kirby->roots()->index(), '', $error->getFile());
