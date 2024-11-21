@@ -193,11 +193,16 @@ class StaticSiteGenerator
     }
   }
 
-  protected function _getRouteContent(string $routePath)
+  protected function _getRouteContent(string $routePath, string $languageCode = null)
   {
     if (!$routePath) {
       return null;
     }
+
+	  if ($languageCode) {
+		  $this->_kirby->setCurrentTranslation($languageCode);
+		  $this->_kirby->setCurrentLanguage($languageCode);
+	  }
 
     $routeResult = kirby()
       ->router()
@@ -230,7 +235,7 @@ class StaticSiteGenerator
       $page = page($page);
     }
 
-    $routeContent = $page ? null : $this->_getRouteContent($routePath ?: $path);
+    $routeContent = $page ? null : $this->_getRouteContent($routePath ?: $path, $languageCode);
     if ($routeContent instanceof Page) {
       $page = $routeContent;
       $routeContent = null;
