@@ -35,7 +35,7 @@ class StaticSiteGenerator
 
   protected $_indexFileName = 'index.html';
 
-  public function __construct(App $kirby, array $pathsToCopy = null, Pages $pages = null)
+  public function __construct(App $kirby, ?array $pathsToCopy = null, ?Pages $pages = null)
   {
     $this->_kirby = $kirby;
 
@@ -210,7 +210,7 @@ class StaticSiteGenerator
     return $this->_kirby->page($page->id());
   }
 
-  protected function _generatePagesByLanguage(string $baseUrl, string $languageCode = null)
+  protected function _generatePagesByLanguage(string $baseUrl, ?string $languageCode = null)
   {
     foreach ($this->_pages->keys() as $key) {
       $page = $this->_pages->$key;
@@ -295,7 +295,7 @@ class StaticSiteGenerator
     }
   }
 
-  protected function _setPageLanguage(Page $page, string $languageCode = null, $forceReset = true)
+  protected function _setPageLanguage(Page $page, ?string $languageCode = null, $forceReset = true)
   {
     $this->_resetCollections();
 
@@ -321,7 +321,7 @@ class StaticSiteGenerator
     })->bindTo($this->_kirby, 'Kirby\\Cms\\App')($this->_kirby);
   }
 
-  protected function _generatePage(Page $page, string $path, string $baseUrl, array $data = [], string $content = null)
+  protected function _generatePage(Page $page, string $path, string $baseUrl, array $data = [], ?string $content = null)
   {
     $page->setSite(null);
     $page = $this->_setRequestUrl($page);
@@ -341,7 +341,7 @@ class StaticSiteGenerator
     $this->_fileList = array_unique(array_merge($this->_fileList, [$path]));
   }
 
-  public function copyFiles(string $folder = null)
+  public function copyFiles(?string $folder = null)
   {
     $outputFolder = $this->_outputFolder;
 
@@ -472,7 +472,7 @@ class StaticSiteGenerator
     );
   }
 
-  protected function _resolveRelativePath(string $path = null)
+  protected function _resolveRelativePath(?string $path = null)
   {
     if (!$path || strpos($path, '.') !== 0) {
       return realpath($path) ?: $path;
@@ -528,7 +528,7 @@ class StaticSiteGenerator
     );
   }
 
-  protected function _handleRenderError(Throwable $error, string $key, string $languageCode = null)
+  protected function _handleRenderError(Throwable $error, string $key, ?string $languageCode = null)
   {
     $message = $error->getMessage();
     $file = str_replace($this->_kirby->roots()->index(), '', $error->getFile());
